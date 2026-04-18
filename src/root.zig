@@ -113,9 +113,10 @@ pub fn encoder(comptime Word: type, comptime Header: type, comptime Hash: type) 
             const remaining = input.len - input_index;
             if (remaining != 0) {
                 @memcpy(output[output_index .. output_index + remaining], input[input_index .. input_index + remaining]);
+                output_index += remaining;
             }
 
-            return output_index + remaining;
+            return output_index;
         }
     };
 }

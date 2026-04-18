@@ -1,6 +1,5 @@
 const std = @import("std");
 const Io = std.Io;
-
 const skim = @import("skim");
 
 pub fn main(init: std.process.Init) !void {
@@ -13,10 +12,10 @@ pub fn main(init: std.process.Init) !void {
         return;
     }
 
-    var input_file = try std.Io.Dir.openFileAbsolute(io, args[1], .{});
+    const input_file = try std.Io.Dir.openFileAbsolute(io, args[1], .{});
     defer input_file.close(io);
 
-    var output_file = try std.Io.Dir.createFileAbsolute(io, args[2], .{});
+    const output_file = try std.Io.Dir.createFileAbsolute(io, args[2], .{});
     defer output_file.close(io);
 
     const Encoder = skim.TinyEncoder;
@@ -27,19 +26,17 @@ pub fn main(init: std.process.Init) !void {
     const mapped_input = try std.posix.mmap(null, @intCast(file_size), .{ .READ = true }, .{ .TYPE = .PRIVATE }, input_file.handle, 0);
     defer std.posix.munmap(mapped_input);
 
-    const INPUT_BLOCK_SIZE = comptime std.math.maxInt(u21);
-    const output_buffer = try arena.alloc(u8, comptime Encoder.outputBufferBound(INPUT_BLOCK_SIZE));
-    defer arena.free(output_buffer);
+    const BLOCK_SIZE = comptime std.math.maxInt(u21);
+    const buffer = try arena.alloc(u8, comptime Encoder.outputBufferBound(BLOCK_SIZE));
+    defer arena.free(buffer);
 
     var offset: usize = 0;
-
     while (offset < mapped_input.len) {
-        const chunk_size = @min(mapped_input.len - offset, INPUT_BLOCK_SIZE);
+        const chunk_size = @min(mapped_input.len - offset, BLOCK_SIZE);
         const chunk = mapped_input[offset .. offset + chunk_size];
 
-        const output_length = encoder.compressBlockToBuffer(chunk, output_buffer);
-
-        try output_file.writeStreamingAll(io, output_buffer[0..output_length]);
+        const len = encoder.compressBlockToBuffer(chunk, buffer);
+        try output_file.writeStreamingAll(io, buffer[0..len]);
 
         offset += chunk_size;
     }
