@@ -1,42 +1,46 @@
 const std = @import("std");
+const Io = std.Io;
+
 const skim = @import("skim");
 
-pub fn main() !void {
-    const allocator = std.heap.smp_allocator;
-
-    const args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
+pub fn main(init: std.process.Init) !void {
+    const arena = init.arena.allocator();
+    const args = try init.minimal.args.toSlice(arena);
+    const io = init.io;
 
     if (args.len < 3) {
         std.debug.print("Usage: {s} <input> <output>\n", .{args[1]});
         return;
     }
 
-    var input_file = try std.fs.cwd().openFile(args[1], .{});
-    defer input_file.close();
+    var input_file = try std.Io.Dir.openFileAbsolute(io, args[1], .{});
+    defer input_file.close(io);
 
-    var output_file = try std.fs.cwd().createFile(args[2], .{});
-    defer output_file.close();
+    var output_file = try std.Io.Dir.createFileAbsolute(io, args[2], .{});
+    defer output_file.close(io);
 
     const Encoder = skim.TinyEncoder;
-    var encoder = try Encoder.init(allocator);
-    defer encoder.deinit(allocator);
+    var encoder = try Encoder.init(arena);
+    defer encoder.deinit(arena);
 
-    const INPUT_SIZE = std.math.maxInt(u21);
-    const OUTPUT_BUFFER_SIZE = comptime Encoder.outputBufferBound(INPUT_SIZE);
+    const file_size = (try input_file.stat(io)).size;
+    const mapped_input = try std.posix.mmap(null, @intCast(file_size), .{ .READ = true }, .{ .TYPE = .PRIVATE }, input_file.handle, 0);
+    defer std.posix.munmap(mapped_input);
 
-    const in_io_mem = try allocator.alloc(u8, INPUT_SIZE);
-    defer allocator.free(in_io_mem);
+    const INPUT_BLOCK_SIZE = comptime std.math.maxInt(u21);
+    const output_buffer = try arena.alloc(u8, comptime Encoder.outputBufferBound(INPUT_BLOCK_SIZE));
+    defer arena.free(output_buffer);
 
-    const out_io_mem = try allocator.alloc(u8, OUTPUT_BUFFER_SIZE);
-    defer allocator.free(out_io_mem);
+    var offset: usize = 0;
 
-    while (true) {
-        const bytes_read = try input_file.readAll(in_io_mem);
-        if (bytes_read == 0) break;
+    while (offset < mapped_input.len) {
+        const chunk_size = @min(mapped_input.len - offset, INPUT_BLOCK_SIZE);
+        const chunk = mapped_input[offset .. offset + chunk_size];
 
-        const output_length = encoder.compressBlockToBuffer(in_io_mem[0..bytes_read], out_io_mem);
+        const output_length = encoder.compressBlockToBuffer(chunk, output_buffer);
 
-        try output_file.writeAll(out_io_mem[0..output_length]);
+        try output_file.writeStreamingAll(io, output_buffer[0..output_length]);
+
+        offset += chunk_size;
     }
 }
