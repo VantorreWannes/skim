@@ -38,6 +38,23 @@ pub fn EncodeBenchmark(Encoder: type) type {
     };
 }
 
+pub fn DecodeBenchmark(Decoder: type) type {
+    return struct {
+        const Self = @This();
+        ctx: *Decoder,
+        input: []const u8,
+        output: []u8,
+
+        pub fn init(ctx: *Decoder, input: []const u8, output: []u8) Self {
+            return .{ .ctx = ctx, .input = input, .output = output };
+        }
+
+        pub fn run(self: *Self, _: std.mem.Allocator) void {
+            _ = self.ctx.decompressBlockToBuffer(self.input, self.output);
+        }
+    };
+}
+
 pub fn main(init: std.process.Init) !void {
     const arena = init.arena.allocator();
     const io = init.io;
@@ -59,39 +76,37 @@ pub fn main(init: std.process.Init) !void {
         const input_data = try readFile(arena, io, file_path);
 
         {
-            const Encoder = skim.FastEncoder;
+            const Encoder = skim.Encoder;
             const encoder = try arena.create(Encoder);
             encoder.* = try Encoder.init(arena);
 
             const output_data = try arena.alloc(u8, Encoder.outputBufferBound(input_data.len));
-            const name = try std.fmt.allocPrint(arena, "FastEncoder: {s}", .{basename(file_path)});
+            const encode_name = try std.fmt.allocPrint(arena, "Encoder: {s}", .{basename(file_path)});
 
-            const param = try arena.create(EncodeBenchmark(Encoder));
-            param.* = EncodeBenchmark(Encoder).init(encoder, input_data, output_data);
+            const encode_param = try arena.create(EncodeBenchmark(Encoder));
+            encode_param.* = EncodeBenchmark(Encoder).init(encoder, input_data, output_data);
 
-            try bench.addParam(name, @as(*const EncodeBenchmark(Encoder), param), .{});
-        }
+            try bench.addParam(encode_name, @as(*const EncodeBenchmark(Encoder), encode_param), .{});
 
-        {
-            const Encoder = skim.TinyEncoder;
-            const encoder = try arena.create(Encoder);
-            encoder.* = try Encoder.init(arena);
+            const Decoder = skim.Decoder;
+            const decoder = try arena.create(Decoder);
+            decoder.* = try Decoder.init(arena);
 
-            const output_data = try arena.alloc(u8, Encoder.outputBufferBound(input_data.len));
-            const name = try std.fmt.allocPrint(arena, "TinyEncoder: {s}", .{basename(file_path)});
+            const compressed_buffer = try arena.alloc(u8, Encoder.outputBufferBound(input_data.len));
+            const compressed_size = encoder.compressBlockToBuffer(input_data, compressed_buffer);
+            const compressed_data = compressed_buffer[0..compressed_size];
 
-            const param = try arena.create(EncodeBenchmark(Encoder));
-            param.* = EncodeBenchmark(Encoder).init(encoder, input_data, output_data);
+            const decompressed_data = try arena.alloc(u8, input_data.len);
+            const decode_name = try std.fmt.allocPrint(arena, "Decoder: {s}", .{basename(file_path)});
 
-            try bench.addParam(name, @as(*const EncodeBenchmark(Encoder), param), .{});
+            const decode_param = try arena.create(DecodeBenchmark(Decoder));
+            decode_param.* = DecodeBenchmark(Decoder).init(decoder, compressed_data, decompressed_data);
+
+            try bench.addParam(decode_name, @as(*const DecodeBenchmark(Decoder), decode_param), .{});
         }
     }
 
     try writer.writeAll("\n");
-
-    // Flush our own custom prints before running zbench
     try writer.flush();
-
-    // zbench natively handles the rest
     try bench.run(io, std.Io.File.stdout());
 }

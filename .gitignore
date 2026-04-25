@@ -2,4 +2,4 @@
 zig-out/
 *.o
 zig-pkg/
-100mb.txt
+data/
