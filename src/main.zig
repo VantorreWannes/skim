@@ -7,19 +7,16 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
 
     const prog = if (args.len > 0) args[0] else "skim";
+    const valid_args = args.len == 4 and
+        (std.mem.eql(u8, args[1], "-c") or std.mem.eql(u8, args[1], "-d")) and
+        !std.mem.eql(u8, args[2], args[3]);
 
-    if (args.len == 2 and std.mem.eql(u8, args[1], "-h")) {
-        std.debug.print("Usage: {s} [-c | -d] <input> <output>\n", .{prog});
-        return;
-    }
-
-    if (args.len != 4 or (!std.mem.eql(u8, args[1], "-c") and !std.mem.eql(u8, args[1], "-d")) or std.mem.eql(u8, args[2], args[3])) {
+    if (!valid_args) {
         std.debug.print("Usage: {s}[-c | -d] <input> <output>\n", .{prog});
         return;
     }
 
-    const is_decode = std.mem.eql(u8, args[1], "-d");
-
+    const is_decode = args[1][1] == 'd';
     const cwd = std.Io.Dir.cwd();
 
     const input_file = try cwd.openFile(io, args[2], .{});
@@ -31,50 +28,43 @@ pub fn main(init: std.process.Init) !void {
     const file_size = (try input_file.stat(io)).size;
     if (file_size == 0) return;
 
-    const mapped_input = try std.posix.mmap(
-        null,
-        @intCast(file_size),
-        .{ .READ = true },
-        .{ .TYPE = .PRIVATE },
-        input_file.handle,
-        0,
-    );
-    defer std.posix.munmap(mapped_input);
+    const file_buffer = try arena.alloc(u8, @intCast(file_size));
+    var reader_wrap = input_file.readerStreaming(io, &.{});
+    const bytes_read = try reader_wrap.interface.readSliceShort(file_buffer);
+    const input = file_buffer[0..bytes_read];
+
+    var writer_wrap = output_file.writerStreaming(io, &.{});
+    const writer = &writer_wrap.interface;
 
     const BLOCK_SIZE = comptime std.math.maxInt(u21);
+    var offset: usize = 0;
 
     if (is_decode) {
         var decoder = try skim.Decoder.init(arena);
         defer decoder.deinit(arena);
-
         const buffer = try arena.alloc(u8, BLOCK_SIZE);
-        defer arena.free(buffer);
 
-        var offset: usize = 0;
-        while (offset < mapped_input.len) {
-            const chunk = mapped_input[offset..];
-            const uncompressed_size = skim.Decoder.exactOutputLength(chunk);
-
-            const consumed_bytes = decoder.decompressBlockToBuffer(chunk, buffer[0..uncompressed_size]);
-            try output_file.writeStreamingAll(io, buffer[0..uncompressed_size]);
-
-            offset += consumed_bytes;
+        while (offset < input.len) {
+            const chunk = input[offset..];
+            const out_len = skim.Decoder.exactOutputLength(chunk);
+            
+            const consumed = decoder.decompressBlockToBuffer(chunk, buffer[0..out_len]);
+            try writer.writeAll(buffer[0..out_len]);
+            
+            offset += consumed;
         }
     } else {
         var encoder = try skim.Encoder.init(arena);
         defer encoder.deinit(arena);
-
         const buffer = try arena.alloc(u8, comptime skim.Encoder.outputBufferBound(BLOCK_SIZE));
-        defer arena.free(buffer);
 
-        var offset: usize = 0;
-        while (offset < mapped_input.len) {
-            const chunk_size = @min(mapped_input.len - offset, BLOCK_SIZE);
-            const chunk = mapped_input[offset .. offset + chunk_size];
-
+        while (offset < input.len) {
+            const chunk_size = @min(input.len - offset, BLOCK_SIZE);
+            const chunk = input[offset .. offset + chunk_size];
+            
             const len = encoder.compressBlockToBuffer(chunk, buffer);
-            try output_file.writeStreamingAll(io, buffer[0..len]);
-
+            try writer.writeAll(buffer[0..len]);
+            
             offset += chunk_size;
         }
     }
