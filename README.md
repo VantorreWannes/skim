@@ -10,7 +10,7 @@ All benchmarks are done on my pc. Take them with a grain of salt.
 
 ### Skim
 
-- **Speed:** ~3.27 GB/s encoding | ~15.5 GB/s decoding
+- **Speed:** ~3.27 GB/s encoding | ~1.65 GB/s decoding
 - **Efficiency:** Compresses 100MB in 30.6 ms.
 - **Ratio:** Low | 75% saved for log or repetitive files.
 
