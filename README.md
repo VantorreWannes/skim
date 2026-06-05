@@ -20,7 +20,9 @@ All benchmarks are done on my pc. Take them with a grain of salt.
 - **Efficiency:** Compresses 100MB in 256.0 ms.
 - **Ratio:** High | 99% saved for log or repetitive files.
 
----
+## Benchmark plot
+
+![plot.png](./plot.png)
 
 ## Usage
 
