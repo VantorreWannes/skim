@@ -34,8 +34,12 @@ All benchmarks are done on my pc. Take them with a grain of salt.
 skim -c <input_file> <output_file>
 ```
 
+The argument `<input_file>` can be replaced with `-` to stream from `stdin`.
+
 #### Decompress a file
 
 ```bash
 skim -d <input_file> <output_file>
 ```
+
+The argument `<output_file>` can be replaced with `-` to stream to `stdout`.
