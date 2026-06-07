@@ -4,7 +4,6 @@ pub fn build(b: *std.Build) void {
     // Options
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const use_llvm = b.option(bool, "llvm", "Use the LLVM backend");
 
     // Packages
     const zbench_pkg = b.dependency("zbench", .{ .target = target, .optimize = optimize });
@@ -16,7 +15,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        // .link_libc = true,
+        .link_libc = true,
     });
 
     const main_mod = b.createModule(.{
@@ -38,8 +37,9 @@ pub fn build(b: *std.Build) void {
     // Libraries
     const root_lib = b.addLibrary(.{
         .name = "skim",
+        .linkage = .dynamic,
         .root_module = root_mod,
-        .use_llvm = use_llvm,
+        .use_llvm = true,
     });
 
     // Directories
@@ -53,25 +53,25 @@ pub fn build(b: *std.Build) void {
     const main_bin = b.addExecutable(.{
         .name = "skim",
         .root_module = main_mod,
-        .use_llvm = use_llvm,
+        .use_llvm = true,
     });
 
     const bench_bin = b.addExecutable(.{
         .name = "benchmarks",
         .root_module = bench_mod,
-        .use_llvm = use_llvm,
+        .use_llvm = true,
     });
 
     const root_test_bin = b.addTest(.{
         .name = "root_tests",
         .root_module = root_mod,
-        .use_llvm = use_llvm,
+        .use_llvm = true,
     });
 
     const main_test_bin = b.addTest(.{
         .name = "main_tests",
         .root_module = main_mod,
-        .use_llvm = use_llvm,
+        .use_llvm = true,
     });
 
     // Commands
@@ -107,4 +107,5 @@ pub fn build(b: *std.Build) void {
     // Install
     b.installArtifact(main_bin);
     b.installArtifact(root_test_bin);
+    b.installArtifact(root_lib);
 }

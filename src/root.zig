@@ -224,3 +224,82 @@ test "Encoder / Decoder full cycle" {
     try std.testing.expectEqual(input_data.len, input_data.len);
     try std.testing.expectEqualStrings(input_data, &decompressed_buffer);
 }
+
+const c_allocator = std.heap.c_allocator;
+
+export fn skim_encoder_create() ?*Encoder {
+    const enc = c_allocator.create(Encoder) catch return null;
+    errdefer c_allocator.destroy(enc);
+    enc.* = Encoder.init(c_allocator) catch return null;
+    return enc;
+}
+
+export fn skim_encoder_destroy(encoder_ptr: ?*Encoder) void {
+    if (encoder_ptr) |enc| {
+        enc.deinit(c_allocator);
+        c_allocator.destroy(enc);
+    }
+}
+
+export fn skim_encoder_output_buffer_bound(len: usize) usize {
+    return Encoder.outputBufferBound(len);
+}
+
+export fn skim_encoder_compress(
+    encoder_ptr: ?*Encoder,
+    input_ptr: ?[*]const u8,
+    input_len: usize,
+    output_ptr: ?[*]u8,
+) usize {
+    const enc = encoder_ptr orelse return 0;
+    const in_ptr = input_ptr orelse return 0;
+    const out_ptr = output_ptr orelse return 0;
+
+    if (input_len == 0) return 0;
+
+    const input = in_ptr[0..input_len];
+
+    const output_bound = Encoder.outputBufferBound(input_len);
+    const output = out_ptr[0..output_bound];
+
+    return enc.compressBlockToBuffer(input, output);
+}
+
+export fn skim_decoder_create() ?*Decoder {
+    const dec = c_allocator.create(Decoder) catch return null;
+    errdefer c_allocator.destroy(dec);
+    dec.* = Decoder.init(c_allocator) catch return null;
+    return dec;
+}
+
+export fn skim_decoder_destroy(decoder_ptr: ?*Decoder) void {
+    if (decoder_ptr) |dec| {
+        dec.deinit(c_allocator);
+        c_allocator.destroy(dec);
+    }
+}
+
+export fn skim_decoder_exact_output_length(input_ptr: ?[*]const u8, input_len: usize) usize {
+    const in_ptr = input_ptr orelse return 0;
+    const input = in_ptr[0..input_len];
+    return Decoder.exactOutputLength(input);
+}
+
+export fn skim_decoder_decompress(
+    decoder_ptr: ?*Decoder,
+    input_ptr: ?[*]const u8,
+    input_len: usize,
+    output_ptr: ?[*]u8,
+    output_len: usize,
+) usize {
+    const dec = decoder_ptr orelse return 0;
+    const in_ptr = input_ptr orelse return 0;
+    const out_ptr = output_ptr orelse return 0;
+
+    if (input_len == 0 or output_len == 0) return 0;
+
+    const input = in_ptr[0..input_len];
+    const output = out_ptr[0..output_len];
+
+    return dec.decompressBlockToBuffer(input, output);
+}
