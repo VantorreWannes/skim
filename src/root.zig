@@ -265,6 +265,12 @@ export fn skim_encoder_compress(
     return enc.compressBlockToBuffer(input, output);
 }
 
+export fn skim_encoder_reset(encoder_ptr: ?*Encoder) void {
+    if (encoder_ptr) |enc| {
+        @memset(enc.table.table, 0);
+    }
+}
+
 export fn skim_decoder_create() ?*Decoder {
     const dec = c_allocator.create(Decoder) catch return null;
     errdefer c_allocator.destroy(dec);
@@ -302,4 +308,10 @@ export fn skim_decoder_decompress(
     const output = out_ptr[0..output_len];
 
     return dec.decompressBlockToBuffer(input, output);
+}
+
+export fn skim_decoder_reset(decoder_ptr: ?*Decoder) void {
+    if (decoder_ptr) |dec| {
+        @memset(dec.table.table, 0);
+    }
 }
