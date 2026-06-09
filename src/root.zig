@@ -77,7 +77,7 @@ pub fn encoder(comptime Word: type, comptime Header: type, comptime Hash: type) 
             return len + (blocks * HEADER_BYTES) + HEADER_BYTES + WORD_BYTES + SIZE_BYTES;
         }
 
-        pub fn compressBlockToBuffer(self: *Self, input: []const u8, output: []u8) usize {
+        pub fn compressBlockToBuffer(self: *Self, noalias input: []const u8, noalias output: []u8) usize {
             @setRuntimeSafety(false);
 
             var input_index: usize = 0;
@@ -150,7 +150,7 @@ pub fn decoder(comptime Word: type, comptime Header: type, comptime Hash: type) 
             return @intCast(std.mem.readInt(Size, input[0..SIZE_BYTES], .little));
         }
 
-        pub fn decompressBlockToBuffer(self: *Self, input: []const u8, output: []u8) usize {
+        pub fn decompressBlockToBuffer(self: *Self, noalias input: []const u8, noalias output: []u8) usize {
             @setRuntimeSafety(false);
 
             const len = exactOutputLength(input);
@@ -221,7 +221,7 @@ test "Encoder / Decoder full cycle" {
     const compressed_size = compressor.compressBlockToBuffer(input_data, &compressed_buffer);
     _ = decompressor.decompressBlockToBuffer(compressed_buffer[0..compressed_size], &decompressed_buffer);
 
-    try std.testing.expectEqual(input_data.len, input_data.len);
+    try std.testing.expectEqual(input_data.len, decompressed_buffer.len);
     try std.testing.expectEqualStrings(input_data, &decompressed_buffer);
 }
 
